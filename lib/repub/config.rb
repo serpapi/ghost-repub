@@ -3,7 +3,7 @@ require_relative "publishers/devto"
 module Repub
   class Config
     RSS_URL = "https://serpapi.com/blog/rss/"
-    POLL_INTERVAL_SECONDS = 3 * 60 * 60
+    POLL_INTERVAL_SECONDS = 2 * 60
     RSS_ITEM_LIMIT = 10
     REPUBLISH_AFTER_DAYS = 3
 

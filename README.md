@@ -56,13 +56,21 @@ DEVTO_API_KEY=your_dev_api_key
 
 ## Long-running server
 
-Run the server/worker:
+Run the standalone server/worker locally:
 
 ```bash
 ./server.rb
 ```
 
-The server runs continuously until stopped with `Ctrl+C` or `TERM`.
+The standalone server runs continuously until stopped with `Ctrl+C` or `TERM`.
+
+For Rack-based platforms like CapRover's Ruby Rack template, the app also includes `config.ru`. The Rack app starts the republishing worker in a background thread and responds to HTTP requests with a simple health message:
+
+```text
+repub rack app running
+```
+
+Use only one app instance/replica for the Rack deployment. Multiple replicas would start multiple worker threads and could race to create the same DEV.to draft/post.
 
 The worker:
 
@@ -106,6 +114,20 @@ There is only one supported DEV.to author-token naming convention:
 If the matching token is not set, the RSS item is skipped before conversion/publishing.
 
 ## Server logging
+
+On startup, both `server.rb` and `config.ru` log the current configuration without printing tokens:
+
+```text
+Repub server starting
+Mode: rack background worker
+RSS feed: https://serpapi.com/blog/rss/
+Services: devto
+Polling every 120 seconds
+Checking latest 10 RSS item(s)
+Republishing posts at least 3 days old
+DEV.to organization ID: 2993
+DEV.to mode: draft
+```
 
 Server logs use service-oriented messages such as:
 
@@ -180,6 +202,27 @@ publish(post)
 ```
 
 Then register it in `Repub::Config.publishers_for_author_key` and add the service name to `ENABLED_SERVICES`.
+
+## CapRover Ruby Rack deployment
+
+This project can run under CapRover's Ruby Rack template because it includes `config.ru`.
+
+Make sure your CapRover app environment variables include the author tokens and DEV.to options, for example:
+
+```env
+HILMAN_DEVTO_TOKEN=...
+REPUB_DEVTO_ORGANIZATION_ID=2993
+REPUB_DEVTO_PUBLISHED=false
+```
+
+The Rack process should show startup logs like:
+
+```text
+Repub server starting
+Mode: rack background worker
+```
+
+If you do not see those lines, CapRover is likely not booting this repo's `config.ru`.
 
 ## Platforms
 

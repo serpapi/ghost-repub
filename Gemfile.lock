@@ -3,6 +3,7 @@ GEM
   specs:
     dotenv (3.2.0)
     logger (1.7.0)
+    nio4r (2.7.5)
     nokogiri (1.19.2-aarch64-linux-gnu)
       racc (~> 1.4)
     nokogiri (1.19.2-aarch64-linux-musl)
@@ -19,7 +20,12 @@ GEM
       racc (~> 1.4)
     nokogiri (1.19.2-x86_64-linux-musl)
       racc (~> 1.4)
+    puma (8.0.2)
+      nio4r (~> 2.0)
     racc (1.8.1)
+    rack (3.2.6)
+    rackup (2.3.1)
+      rack (>= 3)
     reverse_markdown (3.0.2)
       nokogiri
     rexml (3.4.4)
@@ -40,12 +46,16 @@ DEPENDENCIES
   dotenv
   logger
   nokogiri
+  puma
+  rack
+  rackup
   reverse_markdown
   rss
 
 CHECKSUMS
   dotenv (3.2.0) sha256=e375b83121ea7ca4ce20f214740076129ab8514cd81378161f11c03853fe619d
   logger (1.7.0) sha256=196edec7cc44b66cfb40f9755ce11b392f21f7967696af15d274dde7edff0203
+  nio4r (2.7.5) sha256=6c90168e48fb5f8e768419c93abb94ba2b892a1d0602cb06eef16d8b7df1dca1
   nokogiri (1.19.2-aarch64-linux-gnu) sha256=c34d5c8208025587554608e98fd88ab125b29c80f9352b821964e9a5d5cfbd19
   nokogiri (1.19.2-aarch64-linux-musl) sha256=7f6b4b0202d507326841a4f790294bf75098aef50c7173443812e3ac5cb06515
   nokogiri (1.19.2-arm-linux-gnu) sha256=b7fa1139016f3dc850bda1260988f0d749934a939d04ef2da13bec060d7d5081
@@ -54,7 +64,10 @@ CHECKSUMS
   nokogiri (1.19.2-x86_64-darwin) sha256=7d9af11fda72dfaa2961d8c4d5380ca0b51bc389dc5f8d4b859b9644f195e7a4
   nokogiri (1.19.2-x86_64-linux-gnu) sha256=fa8feca882b73e871a9845f3817a72e9734c8e974bdc4fbad6e4bc6e8076b94f
   nokogiri (1.19.2-x86_64-linux-musl) sha256=93128448e61a9383a30baef041bf1f5817e22f297a1d400521e90294445069a8
+  puma (8.0.2) sha256=c8ed871dfbbe66448ea9ffd46692342d9804d4071522b52b5331b7b6e7b686fb
   racc (1.8.1) sha256=4a7f6929691dbec8b5209a0b373bc2614882b55fc5d2e447a21aaa691303d62f
+  rack (3.2.6) sha256=5ed78e1f73b2e25679bec7d45ee2d4483cc4146eb1be0264fc4d94cb5ef212c2
+  rackup (2.3.1) sha256=6c79c26753778e90983761d677a48937ee3192b3ffef6bc963c0950f94688868
   reverse_markdown (3.0.2) sha256=818ebb92ce39dbb1a291690dd1ec9a6d62530d4725296b17e9c8f668f9a5b8af
   rexml (3.4.4) sha256=19e0a2c3425dfbf2d4fc1189747bdb2f849b6c5e74180401b15734bc97b5d142
   rss (0.3.3) sha256=37ef1ec4d691d67edbe92159079a4e89a0965e6a6b32246009ae3d734d12d1ab

@@ -11,13 +11,14 @@ module Repub
   class RssWorker
     FeedItem = Struct.new(:url, :title, :author_name, :published_at, keyword_init: true)
 
-    def initialize(rss_url:, publishers_for_author_key:, poll_interval:, rss_item_limit:, republish_after_days:, logger: Logger.new($stdout))
+    def initialize(rss_url:, publishers_for_author_key:, poll_interval:, rss_item_limit:, republish_after_days:, logger: Logger.new($stdout), trap_signals: true)
       @rss_url = rss_url
       @publishers_for_author_key = publishers_for_author_key
       @poll_interval = poll_interval
       @rss_item_limit = rss_item_limit
       @republish_after_days = republish_after_days
       @logger = logger
+      @trap_signals = trap_signals
       @seen = Hash.new { |hash, key| hash[key] = Set.new }
       @publishers_by_author_key = {}
       @author_keys_by_url = {}
@@ -25,10 +26,14 @@ module Repub
     end
 
     def run
-      trap_signals
+      trap_signals if @trap_signals
 
       loop do
-        process_feed
+        begin
+          process_feed
+        rescue StandardError => e
+          @logger.error("Feed processing failed: #{e.class}: #{e.message}")
+        end
         break if @stop
 
         @logger.info("Sleeping #{@poll_interval}s")

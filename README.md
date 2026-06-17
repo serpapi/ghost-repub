@@ -203,9 +203,27 @@ publish(post)
 
 Then register it in `Repub::Config.publishers_for_author_key` and add the service name to `ENABLED_SERVICES`.
 
-## CapRover Ruby Rack deployment
+## CapRover deployment
 
-This project can run under CapRover's Ruby Rack template because it includes `config.ru`.
+This project includes both:
+
+- `config.ru` for Rack compatibility
+- `Dockerfile` plus `captain-definition` for explicit CapRover Dockerfile builds
+
+The checked-in `captain-definition` points CapRover at `./Dockerfile`:
+
+```json
+{
+  "schemaVersion": 2,
+  "dockerfilePath": "./Dockerfile"
+}
+```
+
+The Dockerfile runs:
+
+```dockerfile
+CMD ["bundle", "exec", "rackup", "config.ru", "--host", "0.0.0.0", "--port", "80"]
+```
 
 Make sure your CapRover app environment variables include the author tokens and DEV.to options, for example:
 
@@ -223,6 +241,16 @@ Mode: rack background worker
 ```
 
 If you do not see those lines, CapRover is likely not booting this repo's `config.ru`.
+
+In the build log, a correct Dockerfile-based build should include lines like:
+
+```text
+COPY Gemfile Gemfile.lock ./
+RUN bundle exec ruby -c config.ru && ...
+CMD ["bundle", "exec", "rackup", "config.ru", "--host", "0.0.0.0", "--port", "80"]
+```
+
+If the build log instead shows `templateId: ruby-rack` behavior or `CMD ["rackup", ...]` without `bundle exec`, CapRover is not using the current `captain-definition`/`Dockerfile` revision.
 
 ## Platforms
 

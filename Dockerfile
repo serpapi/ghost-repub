@@ -1,10 +1,22 @@
-FROM library/ruby:4.0.1-alpine
-RUN apk update && apk upgrade && \
-    apk add --no-cache make g++ git
-RUN mkdir -p /usr/src/app
+FROM ruby:4.0.1-alpine
+
 WORKDIR /usr/src/app
-COPY ./Gemfile /usr/src/app/
+
+RUN apk add --no-cache build-base git ca-certificates
+
+COPY Gemfile Gemfile.lock ./
 RUN bundle install
-COPY ./ /usr/src/app
+
+COPY . .
+
+RUN bundle exec ruby -c config.ru && \
+    bundle exec ruby -c server.rb && \
+    bundle exec ruby -c cli.rb && \
+    bundle exec ruby -c lib/repub/config.rb && \
+    bundle exec ruby -c lib/repub/rss_worker.rb && \
+    bundle exec ruby -c lib/repub/server_boot.rb && \
+    bundle exec ruby -c lib/repub/publishers/devto.rb
+
 EXPOSE 80
-CMD ["rackup", "config.ru", "--host", "0.0.0.0", "--port", "80"]
+
+CMD ["bundle", "exec", "rackup", "config.ru", "--host", "0.0.0.0", "--port", "80"]

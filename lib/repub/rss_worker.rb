@@ -9,10 +9,10 @@ require_relative "post_extractor"
 
 module Repub
   class RssWorker
-    FeedItem = Struct.new(:url, :title, :author_name, :published_at, keyword_init: true)
+    FeedItem = Struct.new(:url, :title, :author_name, :published_at, :author_key, keyword_init: true)
 
-    def initialize(rss_url:, publishers_for_author_key:, poll_interval:, rss_item_limit:, republish_after_days:, logger: Logger.new($stdout), trap_signals: true)
-      @rss_url = rss_url
+    def initialize(feed_sources:, publishers_for_author_key:, poll_interval:, rss_item_limit:, republish_after_days:, logger: Logger.new($stdout), trap_signals: true)
+      @feed_sources = feed_sources
       @publishers_for_author_key = publishers_for_author_key
       @poll_interval = poll_interval
       @rss_item_limit = rss_item_limit
@@ -42,30 +42,46 @@ module Repub
     end
 
     def process_feed
-      @logger.info("Fetching RSS: #{@rss_url}")
-      items = rss_items(@rss_url)
-      @logger.info("Found #{items.length} RSS item(s); reposting only items at least #{@republish_after_days} days old")
+      republished_author_keys = Set.new
 
-      items.reverse_each do |item|
-        process_item(item)
-      rescue StandardError => e
-        @logger.error("RSS item #{item.url} failed: #{e.class}: #{e.message}")
+      @feed_sources.each do |feed_source|
+        rss_url = feed_source.fetch(:rss_url)
+        configured_author_key = feed_source[:author_key]
+
+        @logger.info("Fetching RSS: #{rss_url}")
+        items = rss_items(rss_url, configured_author_key: configured_author_key)
+        @logger.info("Found #{items.length} RSS item(s); processing oldest to newest and reposting only items at least #{@republish_after_days} days old")
+
+        items.sort_by { |item| item.published_at || Time.now }.each do |item|
+          result = process_item(item, republished_author_keys: republished_author_keys)
+          if result[:published]
+            republished_author_keys.add(result[:author_key])
+            @logger.info("Republished one post for #{result[:author_key]}; remaining posts for this author will wait until next loop")
+          end
+        rescue StandardError => e
+          @logger.error("RSS item #{item.url} failed: #{e.class}: #{e.message}")
+        end
       end
     end
 
     private
 
-    def process_item(item)
+    def process_item(item, republished_author_keys: Set.new)
       author_name = item.author_name
       if author_name.nil? || author_name.empty?
         @logger.warn("No RSS author for #{item.url}; skipping")
-        return
+        return { author_key: nil, published: false }
       end
 
-      author_key = author_key_for_item(item)
+      author_key = item.author_key || author_key_for_item(item)
       unless author_key
         @logger.warn("No blog author username for #{item.url}; skipping")
-        return
+        return { author_key: nil, published: false }
+      end
+
+      if republished_author_keys.include?(author_key)
+        @logger.info("Already republished one post for #{author_key}; waiting until next loop for #{article_label(item)}")
+        return { author_key: author_key, published: false }
       end
 
       publishers = publishers_for_author_key(author_key)
@@ -75,16 +91,16 @@ module Repub
         log_skip(item, publisher, "missing token")
       end
 
-      return if configured_publishers.empty?
+      return { author_key: author_key, published: false } if configured_publishers.empty?
 
       unless old_enough?(item)
         configured_publishers.each { |publisher| log_skip(item, publisher, "too new") }
-        return
+        return { author_key: author_key, published: false }
       end
 
       if @seen[author_key].include?(item.url)
         @logger.info("Already saw #{item.url} during this run; skipping")
-        return
+        return { author_key: author_key, published: false }
       end
 
       already_published_publishers = configured_publishers.select { |publisher| already_published_url?(publisher, item.url) }
@@ -95,13 +111,15 @@ module Repub
       pending_publishers = configured_publishers - already_published_publishers
       if pending_publishers.empty?
         @seen[author_key].add(item.url)
-        return
+        return { author_key: author_key, published: false }
       end
 
       @logger.info("Extracting #{item.url} for #{author_name}")
       post = PostExtractor.call(item.url)
       @seen[author_key].add(item.url)
       @seen[author_key].add(post.canonical_url)
+
+      published = false
 
       pending_publishers.each do |publisher|
         publisher_key = "#{author_key}:#{publisher.name}"
@@ -113,11 +131,14 @@ module Repub
 
         @logger.info("Republishing #{article_label(post)} to #{publisher.name}")
         result = publisher.publish(post)
+        published = true
         @seen[publisher_key].add(post.canonical_url)
         @logger.info("#{publisher.name}: created #{result["url"] || result["id"]}")
       rescue StandardError => e
         @logger.error("#{publisher.name}: failed for #{post.canonical_url}: #{e.class}: #{e.message}")
       end
+
+      { author_key: author_key, published: published }
     end
 
     def publishers_for_author_key(author_key)
@@ -143,7 +164,7 @@ module Repub
       false
     end
 
-    def rss_items(rss_url)
+    def rss_items(rss_url, configured_author_key: nil)
       xml = URI.open(rss_url).read
       feed = RSS::Parser.parse(xml, false)
 
@@ -151,7 +172,13 @@ module Repub
         url = item_link(item)&.strip
         next unless url && !url.empty?
 
-        FeedItem.new(url: url, title: item_title(item), author_name: item_author(item), published_at: item_published_at(item))
+        FeedItem.new(
+          url: url,
+          title: item_title(item),
+          author_name: item_author(item),
+          published_at: item_published_at(item),
+          author_key: configured_author_key
+        )
       end.uniq { |item| item.url }
     end
 

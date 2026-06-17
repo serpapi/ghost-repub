@@ -74,21 +74,26 @@ Use only one app instance/replica for the Rack deployment. Multiple replicas wou
 
 The worker:
 
-1. Fetches the main SerpApi blog RSS feed.
-2. Reads recent RSS items.
-3. Resolves the post's blog author username from the post page, e.g. `/blog/author/hilman/` -> `hilman`.
-4. Looks for a matching author token in ENV, e.g. `HILMAN_DEVTO_TOKEN`.
-5. Skips the item if no token is configured for that author.
-6. Skips the item if it is newer than `REPUBLISH_AFTER_DAYS`.
-7. Checks DEV.to existing authenticated articles/drafts by `canonical_url` before posting.
-8. Converts the post using the Ghost-to-Markdown extractor.
-9. Publishes via each configured service using that author's token.
+1. Fetches RSS feeds.
+2. If `AUTHORS` is set, uses individual author feeds like `https://serpapi.com/blog/author/josef/rss/`.
+3. If `AUTHORS` is not set, falls back to the main feed at `https://serpapi.com/blog/rss/`.
+4. Resolves or uses the blog author username, e.g. `hilman`.
+5. Looks for a matching author token in ENV, e.g. `HILMAN_DEVTO_TOKEN`.
+6. Skips the item if no token is configured for that author.
+7. Processes feed items from oldest to newest.
+8. Skips the item if it is newer than `REPUBLISH_AFTER_DAYS`.
+9. Checks DEV.to existing authenticated articles/drafts by `canonical_url` before posting.
+10. Converts the post using the Ghost-to-Markdown extractor.
+11. Publishes via each configured service using that author's token.
+12. Stops processing additional posts for that author after one successful republish in the current loop. The next eligible post is handled in the next loop.
 
 ## ENV configuration
 
 Example:
 
 ```env
+AUTHORS=josef,hilman
+
 HILMAN_DEVTO_TOKEN=hilman_devto_token
 JOSEF_DEVTO_TOKEN=josef_devto_token
 JORDANNE_DEVTO_TOKEN=jordanne_devto_token
@@ -111,7 +116,7 @@ There is only one supported DEV.to author-token naming convention:
 <BLOG_AUTHOR_USERNAME>_DEVTO_TOKEN
 ```
 
-If the matching token is not set, the RSS item is skipped before conversion/publishing.
+If `AUTHORS` is set, only those individual author feeds are scanned. If it is unset or empty, the main RSS feed is scanned instead. If the matching token is not set, the RSS item is skipped before conversion/publishing.
 
 ## Server logging
 
@@ -143,14 +148,15 @@ Skipping republishing Amazon ASIN Lookup API: Find and Fetch Product Details to 
 Worker behavior is configured as constants in `repub/lib/repub/config.rb`:
 
 ```ruby
-RSS_URL = "https://serpapi.com/blog/rss/"
-POLL_INTERVAL_SECONDS = 3 * 60 * 60
+BLOG_BASE_URL = "https://serpapi.com/blog"
+RSS_URL = "#{BLOG_BASE_URL}/rss/"
+POLL_INTERVAL_SECONDS = 12 * 60 * 60
 RSS_ITEM_LIMIT = 10
 REPUBLISH_AFTER_DAYS = 3
 ENABLED_SERVICES = %w[devto].freeze
 ```
 
-By default, the worker polls every 3 hours and posts are only eligible for republishing after they are at least 3 days old.
+The worker checks immediately on startup, then polls every 12 hours. Posts are only eligible for republishing after they are at least 3 days old. In each loop, posts are processed oldest-to-newest, and only one successful republish per author is performed.
 
 ## DEV.to behavior
 

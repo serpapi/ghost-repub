@@ -2,8 +2,9 @@ require_relative "publishers/devto"
 
 module Repub
   class Config
-    RSS_URL = "https://serpapi.com/blog/rss/"
-    POLL_INTERVAL_SECONDS = 2 * 60
+    BLOG_BASE_URL = "https://serpapi.com/blog"
+    RSS_URL = "#{BLOG_BASE_URL}/rss/"
+    POLL_INTERVAL_SECONDS = 12 * 60 * 60
     RSS_ITEM_LIMIT = 10
     REPUBLISH_AFTER_DAYS = 3
 
@@ -11,6 +12,31 @@ module Repub
 
     def self.rss_url
       RSS_URL
+    end
+
+    def self.author_keys
+      ENV.fetch("AUTHORS", "")
+         .split(",")
+         .map { |author| normalize_author_key(author) }
+         .reject(&:empty?)
+    end
+
+    def self.feed_sources
+      if author_keys.any?
+        author_keys.map do |author_key|
+          {
+            rss_url: "#{BLOG_BASE_URL}/author/#{author_key}/rss/",
+            author_key: author_key
+          }
+        end
+      else
+        [
+          {
+            rss_url: RSS_URL,
+            author_key: nil
+          }
+        ]
+      end
     end
 
     def self.poll_interval

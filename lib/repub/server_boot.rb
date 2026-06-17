@@ -21,7 +21,7 @@ module Repub
 
     def build_worker(logger:, trap_signals: true)
       RssWorker.new(
-        rss_url: Config.rss_url,
+        feed_sources: Config.feed_sources,
         publishers_for_author_key: ->(author_key) { Config.publishers_for_author_key(author_key) },
         poll_interval: Config.poll_interval,
         rss_item_limit: Config.rss_item_limit,
@@ -34,7 +34,11 @@ module Repub
     def log_startup(logger, mode:)
       logger.info("Repub server starting")
       logger.info("Mode: #{mode}")
-      logger.info("RSS feed: #{Config.rss_url}")
+      if Config.author_keys.any?
+        logger.info("Author feeds: #{Config.author_keys.join(", ")}")
+      else
+        logger.info("RSS feed: #{Config.rss_url}")
+      end
       logger.info("Services: #{Config.enabled_services.join(", ")}")
       logger.info("Polling every #{Config.poll_interval} seconds")
       logger.info("Checking latest #{Config.rss_item_limit} RSS item(s)")

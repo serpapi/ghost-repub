@@ -1,0 +1,198 @@
+# repub
+
+A Ruby tool that converts SerpApi Ghost blog posts into Markdown and republishes them to services like [DEV.to](https://dev.to).
+
+It supports two modes:
+
+- `cli.rb`: one-off conversion/posting for a single Ghost post URL.
+- `server.rb`: long-running RSS worker that polls the main SerpApi blog feed and republishes posts when the blog author has a matching publishing token.
+
+## Features
+
+- Extracts post metadata like title, description, tags, cover image, publication date, and canonical URL.
+- Converts Ghost post content (`section.post-full-content`) to Markdown via `reverse_markdown`.
+- Handles Ghost bookmark cards, image cards, callout cards, and code block language hints.
+- Can save Markdown output to `<slug>.md`.
+- Can post to DEV.to as a draft or published article.
+- Polls the main SerpApi blog RSS feed continuously.
+- Uses blog author usernames and ENV tokens; no local database or token storage.
+- Checks DEV.to drafts and published posts to avoid duplicates.
+- Uses a publisher abstraction so additional services can be added later.
+
+## Installation
+
+```bash
+bundle install
+cp .env.example .env
+```
+
+Edit `.env` and add real tokens/runtime options.
+
+## One-off CLI usage
+
+Generate a Markdown file from a Ghost post URL:
+
+```bash
+ruby cli.rb <post-url>
+```
+
+Also create a DEV.to draft:
+
+```bash
+ruby cli.rb --devto <post-url>
+```
+
+Publish directly instead of creating a draft:
+
+```bash
+ruby cli.rb --devto --publish <post-url>
+```
+
+For one-off DEV.to posting, set this in `.env`:
+
+```env
+DEVTO_API_KEY=your_dev_api_key
+```
+
+## Long-running server
+
+Run the server/worker:
+
+```bash
+./server.rb
+```
+
+The server runs continuously until stopped with `Ctrl+C` or `TERM`.
+
+The worker:
+
+1. Fetches the main SerpApi blog RSS feed.
+2. Reads recent RSS items.
+3. Resolves the post's blog author username from the post page, e.g. `/blog/author/hilman/` -> `hilman`.
+4. Looks for a matching author token in ENV, e.g. `HILMAN_DEVTO_TOKEN`.
+5. Skips the item if no token is configured for that author.
+6. Skips the item if it is newer than `REPUBLISH_AFTER_DAYS`.
+7. Checks DEV.to existing authenticated articles/drafts by `canonical_url` before posting.
+8. Converts the post using the Ghost-to-Markdown extractor.
+9. Publishes via each configured service using that author's token.
+
+## ENV configuration
+
+Example:
+
+```env
+HILMAN_DEVTO_TOKEN=hilman_devto_token
+JOSEF_DEVTO_TOKEN=josef_devto_token
+JORDANNE_DEVTO_TOKEN=jordanne_devto_token
+
+REPUB_DEVTO_ORGANIZATION_ID=2993
+REPUB_DEVTO_PUBLISHED=false
+```
+
+Author token names use the SerpApi blog author username from the URL:
+
+```text
+https://serpapi.com/blog/author/hilman/   -> HILMAN_DEVTO_TOKEN
+https://serpapi.com/blog/author/josef/    -> JOSEF_DEVTO_TOKEN
+https://serpapi.com/blog/author/jordanne/ -> JORDANNE_DEVTO_TOKEN
+```
+
+There is only one supported DEV.to author-token naming convention:
+
+```text
+<BLOG_AUTHOR_USERNAME>_DEVTO_TOKEN
+```
+
+If the matching token is not set, the RSS item is skipped before conversion/publishing.
+
+## Server logging
+
+Server logs use service-oriented messages such as:
+
+```text
+Republishing Amazon ASIN Lookup API: Find and Fetch Product Details to devto
+Skipping republishing Amazon ASIN Lookup API: Find and Fetch Product Details to devto [already published]
+Skipping republishing Amazon ASIN Lookup API: Find and Fetch Product Details to devto [missing token]
+Skipping republishing Amazon ASIN Lookup API: Find and Fetch Product Details to devto [too new]
+```
+
+## Worker behavior constants
+
+Worker behavior is configured as constants in `repub/lib/repub/config.rb`:
+
+```ruby
+RSS_URL = "https://serpapi.com/blog/rss/"
+POLL_INTERVAL_SECONDS = 3 * 60 * 60
+RSS_ITEM_LIMIT = 10
+REPUBLISH_AFTER_DAYS = 3
+ENABLED_SERVICES = %w[devto].freeze
+```
+
+By default, the worker polls every 3 hours and posts are only eligible for republishing after they are at least 3 days old.
+
+## DEV.to behavior
+
+The DEV.to publisher sends:
+
+```json
+{
+  "article": {
+    "published": false,
+    "organization_id": 2993
+  }
+}
+```
+
+Set this to publish immediately:
+
+```env
+REPUB_DEVTO_PUBLISHED=true
+```
+
+The API key must be a DEV.to user API key for the matching author. If `REPUB_DEVTO_ORGANIZATION_ID` is set, that user must belong to the organization. DEV.to does not provide organization-only posting tokens via the public API.
+
+## Duplicate handling without local storage
+
+The worker does not save local state. To avoid duplicate DEV.to posts, it queries:
+
+```http
+GET https://dev.to/api/articles/me/all
+```
+
+using each author's token and compares existing article `canonical_url` values with the source post URL/canonical URL. This endpoint includes both published articles and drafts, so draft-mode republishing also skips posts that already have DEV.to drafts.
+
+This means:
+
+- Restarts should still avoid duplicates already present on DEV.to.
+- If a destination service does not support listing/checking existing posts, a future publisher will need its own remote duplicate strategy.
+- In-memory `seen` state also prevents reposting the same RSS item repeatedly during a single process run.
+
+## Adding another publishing service
+
+Add a new class under `lib/repub/publishers/` that implements:
+
+```ruby
+name
+configured?
+already_published?(post)
+already_published_url?(url) # optional but recommended for pre-extraction duplicate checks
+publish(post)
+```
+
+Then register it in `Repub::Config.publishers_for_author_key` and add the service name to `ENABLED_SERVICES`.
+
+## Platforms
+
+### DEV.to
+
+Supported for one-off posting and the long-running server.
+
+### Hashnode
+
+Not automated yet. The generated Markdown body can be pasted into the Hashnode editor. Use metadata from the frontmatter to set title, tags, and canonical URL manually.
+
+## Contributing
+
+Feel free to open a PR.
+
+&copy; 2026 SerpApi

@@ -1,11 +1,10 @@
 FROM library/ruby:4.0.1-alpine
 RUN apk update && apk upgrade && \
-    apk add --no-cache make g++ git postgresql-dev
+    apk add --no-cache make g++ git
 RUN mkdir -p /usr/src/app
 WORKDIR /usr/src/app
 COPY ./Gemfile /usr/src/app/
 RUN bundle install
 COPY ./ /usr/src/app
-ENV RACK_ENV production
 EXPOSE 80
 CMD ["rackup", "config.ru", "--host", "0.0.0.0", "--port", "80"]

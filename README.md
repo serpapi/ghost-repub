@@ -1,4 +1,4 @@
-# repub
+# ghost-repub
 
 A Ruby tool that converts SerpApi Ghost blog posts into Markdown and republishes them to services like [DEV.to](https://dev.to).
 

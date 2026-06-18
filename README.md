@@ -83,9 +83,10 @@ The worker:
 7. Processes feed items from oldest to newest.
 8. Skips the item if it is newer than `REPUBLISH_AFTER_DAYS`.
 9. Checks DEV.to existing authenticated articles/drafts by `canonical_url` before posting.
-10. Converts the post using the Ghost-to-Markdown extractor.
-11. Publishes via each configured service using that author's token.
-12. Stops processing additional posts for that author after one successful republish in the current loop. The next eligible post is handled in the next loop.
+10. Skips the item if the author already has a DEV.to article/draft from the last 18 hours.
+11. Converts the post using the Ghost-to-Markdown extractor.
+12. Publishes via each configured service using that author's token.
+13. Stops processing additional posts for that author after one successful republish in the current loop. The next eligible post is handled in the next loop.
 
 ## ENV configuration
 
@@ -141,6 +142,7 @@ Republishing Amazon ASIN Lookup API: Find and Fetch Product Details to devto
 Skipping republishing Amazon ASIN Lookup API: Find and Fetch Product Details to devto [already published]
 Skipping republishing Amazon ASIN Lookup API: Find and Fetch Product Details to devto [missing token]
 Skipping republishing Amazon ASIN Lookup API: Find and Fetch Product Details to devto [too new]
+Skipping republishing Amazon ASIN Lookup API: Find and Fetch Product Details to devto [recent article]
 ```
 
 ## Worker behavior constants
@@ -153,10 +155,11 @@ RSS_URL = "#{BLOG_BASE_URL}/rss/"
 POLL_INTERVAL_SECONDS = 12 * 60 * 60
 RSS_ITEM_LIMIT = 10
 REPUBLISH_AFTER_DAYS = 3
+AUTHOR_COOLDOWN_SECONDS = 18 * 60 * 60
 ENABLED_SERVICES = %w[devto].freeze
 ```
 
-The worker checks immediately on startup, then polls every 12 hours. Posts are only eligible for republishing after they are at least 3 days old. In each loop, posts are processed oldest-to-newest, and only one successful republish per author is performed.
+The worker checks immediately on startup, then polls every 12 hours. Posts are only eligible for republishing after they are at least 3 days old. In each loop, posts are processed oldest-to-newest, only one successful republish per author is performed, and an author is skipped if DEV.to reports any article/draft from the last 18 hours.
 
 ## DEV.to behavior
 
@@ -187,7 +190,7 @@ The worker does not save local state. To avoid duplicate DEV.to posts, it querie
 GET https://dev.to/api/articles/me/all
 ```
 
-using each author's token and compares existing article `canonical_url` values with the source post URL/canonical URL. This endpoint includes both published articles and drafts, so draft-mode republishing also skips posts that already have DEV.to drafts.
+using each author's token and compares existing article `canonical_url` values with the source post URL/canonical URL. This endpoint includes both published articles and drafts, so draft-mode republishing also skips posts that already have DEV.to drafts. The same endpoint is checked fresh when enforcing the 18-hour author cooldown.
 
 This means:
 

@@ -1,6 +1,7 @@
 require "json"
 require "net/http"
 require "set"
+require "time"
 require "uri"
 
 module Repub
@@ -8,11 +9,11 @@ module Repub
     class Devto
       API_BASE_URL = "https://dev.to/api"
 
-      def initialize(api_key:, organization_id:, published: false)
+      def initialize(api_key:, organization_id:, published: false, author_cooldown_seconds: 18 * 60 * 60)
         @api_key = api_key
         @organization_id = organization_id
         @published = published
-        @known_source_urls = nil
+        @author_cooldown_seconds = author_cooldown_seconds
       end
 
       def name
@@ -31,6 +32,10 @@ module Repub
         known_source_urls.include?(url)
       end
 
+      def recent_article?
+        latest_article_at&.then { |timestamp| timestamp > Time.now - @author_cooldown_seconds } || false
+      end
+
       def publish(post)
         article = {
           title: post.title,
@@ -44,40 +49,52 @@ module Repub
         article[:organization_id] = @organization_id if @organization_id
 
         response = request(:post, "/articles", body: { article: article })
-        payload = JSON.parse(response.body)
-
-        known_source_urls.add(post.canonical_url)
-        known_source_urls.add(post.url)
-
-        payload
+        JSON.parse(response.body)
       end
 
       private
 
       def known_source_urls
-        @known_source_urls ||= begin
-          urls = Set.new
-          page = 1
+        urls = Set.new
 
-          # /articles/me/all intentionally includes both published articles and drafts.
-          # This lets draft-mode republishing skip posts that were already created as drafts.
-          loop do
-            response = request(:get, "/articles/me/all?page=#{page}&per_page=1000")
-            articles = JSON.parse(response.body)
-            break if articles.empty?
-
-            articles.each do |article|
-              urls.add(article["canonical_url"]) if article["canonical_url"] && !article["canonical_url"].empty?
-              urls.add(article["url"]) if article["url"] && !article["url"].empty?
-            end
-
-            break if articles.length < 1000
-
-            page += 1
-          end
-
-          urls
+        articles.each do |article|
+          urls.add(article["canonical_url"]) if article["canonical_url"] && !article["canonical_url"].empty?
+          urls.add(article["url"]) if article["url"] && !article["url"].empty?
         end
+
+        urls
+      end
+
+      def latest_article_at
+        articles.filter_map { |article| article_timestamp(article) }.max
+      end
+
+      def article_timestamp(article)
+        raw_timestamp = article["published_at"] || article["published_timestamp"] || article["created_at"]
+        Time.parse(raw_timestamp.to_s)
+      rescue ArgumentError, TypeError
+        nil
+      end
+
+      def articles
+        all_articles = []
+        page = 1
+
+        # /articles/me/all intentionally includes both published articles and drafts.
+        # This lets draft-mode republishing skip posts that were already created as drafts,
+        # and makes the author cooldown consider recently-created drafts too.
+        loop do
+          response = request(:get, "/articles/me/all?page=#{page}&per_page=1000")
+          page_articles = JSON.parse(response.body)
+          break if page_articles.empty?
+
+          all_articles.concat(page_articles)
+          break if page_articles.length < 1000
+
+          page += 1
+        end
+
+        all_articles
       end
 
       def request(method, path, body: nil)

@@ -26,6 +26,7 @@ module Repub
         poll_interval: Config.poll_interval,
         rss_item_limit: Config.rss_item_limit,
         republish_after_days: Config.republish_after_days,
+        medium_limit: Config.medium_limit,
         logger: logger,
         trap_signals: trap_signals
       )
@@ -43,6 +44,8 @@ module Repub
       logger.info("Polling every #{Config.poll_interval} seconds")
       logger.info("Checking latest #{Config.rss_item_limit} RSS item(s)")
       logger.info("Republishing posts at least #{Config.republish_after_days} days old")
+      logger.info("Author cooldown: #{Config.author_cooldown_seconds} seconds")
+      logger.info("Medium limit: #{Config.medium_limit} post(s) per cycle")
       logger.info("DEV.to organization ID: #{Config.devto_organization_id || "none"}")
       logger.info("DEV.to mode: #{Config.devto_published? ? "publish" : "draft"}")
     end

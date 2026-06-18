@@ -11,12 +11,13 @@ module Repub
   class RssWorker
     FeedItem = Struct.new(:url, :title, :author_name, :published_at, :author_key, keyword_init: true)
 
-    def initialize(feed_sources:, publishers_for_author_key:, poll_interval:, rss_item_limit:, republish_after_days:, logger: Logger.new($stdout), trap_signals: true)
+    def initialize(feed_sources:, publishers_for_author_key:, poll_interval:, rss_item_limit:, republish_after_days:, medium_limit:, logger: Logger.new($stdout), trap_signals: true)
       @feed_sources = feed_sources
       @publishers_for_author_key = publishers_for_author_key
       @poll_interval = poll_interval
       @rss_item_limit = rss_item_limit
       @republish_after_days = republish_after_days
+      @medium_limit = medium_limit
       @logger = logger
       @trap_signals = trap_signals
       @seen = Hash.new { |hash, key| hash[key] = Set.new }
@@ -43,8 +44,11 @@ module Repub
 
     def process_feed
       republished_author_keys = Set.new
+      total_published = 0
 
       @feed_sources.each do |feed_source|
+        break if total_published >= @medium_limit
+
         rss_url = feed_source.fetch(:rss_url)
         configured_author_key = feed_source[:author_key]
 
@@ -53,10 +57,14 @@ module Repub
         @logger.info("Found #{items.length} RSS item(s); processing oldest to newest and reposting only items at least #{@republish_after_days} days old")
 
         items.sort_by { |item| item.published_at || Time.now }.each do |item|
+          break if total_published >= @medium_limit
+
           result = process_item(item, republished_author_keys: republished_author_keys)
           if result[:published]
+            total_published += 1
             republished_author_keys.add(result[:author_key])
             @logger.info("Republished one post for #{result[:author_key]}; remaining posts for this author will wait until next loop")
+            @logger.info("Total published this cycle: #{total_published}/#{@medium_limit}") if total_published >= @medium_limit
           end
         rescue StandardError => e
           @logger.error("RSS item #{item.url} failed: #{e.class}: #{e.message}")
@@ -108,7 +116,14 @@ module Repub
         log_skip(item, publisher, "already published")
       end
 
-      pending_publishers = configured_publishers - already_published_publishers
+      publishers_without_existing_post = configured_publishers - already_published_publishers
+
+      recent_article_publishers = publishers_without_existing_post.select { |publisher| recent_article?(publisher) }
+      recent_article_publishers.each do |publisher|
+        log_skip(item, publisher, "recent article")
+      end
+
+      pending_publishers = publishers_without_existing_post - recent_article_publishers
       if pending_publishers.empty?
         @seen[author_key].add(item.url)
         return { author_key: author_key, published: false }
@@ -156,6 +171,12 @@ module Repub
     rescue StandardError => e
       @logger.error("Failed to resolve blog author username for #{item.url}: #{e.class}: #{e.message}")
       nil
+    end
+
+    def recent_article?(publisher)
+      return publisher.recent_article? if publisher.respond_to?(:recent_article?)
+
+      false
     end
 
     def already_published_url?(publisher, url)

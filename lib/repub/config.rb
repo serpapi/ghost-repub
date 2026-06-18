@@ -4,9 +4,11 @@ module Repub
   class Config
     BLOG_BASE_URL = "https://serpapi.com/blog"
     RSS_URL = "#{BLOG_BASE_URL}/rss/"
-    POLL_INTERVAL_SECONDS = 12 * 60 * 60
+    POLL_INTERVAL_SECONDS = 8 * 60 * 60
     RSS_ITEM_LIMIT = 10
     REPUBLISH_AFTER_DAYS = 3
+    AUTHOR_COOLDOWN_SECONDS = 18 * 60 * 60
+    MEDIUM_LIMIT = 2
 
     ENABLED_SERVICES = %w[devto].freeze
 
@@ -51,6 +53,14 @@ module Repub
       REPUBLISH_AFTER_DAYS
     end
 
+    def self.author_cooldown_seconds
+      AUTHOR_COOLDOWN_SECONDS
+    end
+
+    def self.medium_limit
+      MEDIUM_LIMIT
+    end
+
     def self.enabled_services
       ENABLED_SERVICES
     end
@@ -71,7 +81,8 @@ module Repub
           Publishers::Devto.new(
             api_key: author_devto_token(author_key),
             organization_id: devto_organization_id,
-            published: devto_published?
+            published: devto_published?,
+            author_cooldown_seconds: author_cooldown_seconds
           )
         else
           raise "Unknown service: #{service}"

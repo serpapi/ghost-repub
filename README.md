@@ -128,9 +128,9 @@ Repub server starting
 Mode: rack background worker
 RSS feed: https://serpapi.com/blog/rss/
 Services: devto
-Polling every 43200 seconds
+Polling every 28800 seconds
 Checking latest 10 RSS item(s)
-Republishing posts at least 3 days old
+Republishing posts at least 0.125 days old
 DEV.to organization ID: 2993
 DEV.to mode: publish
 ```
@@ -152,14 +152,14 @@ Worker behavior is configured as constants in `repub/lib/repub/config.rb`:
 ```ruby
 BLOG_BASE_URL = "https://serpapi.com/blog"
 RSS_URL = "#{BLOG_BASE_URL}/rss/"
-POLL_INTERVAL_SECONDS = 12 * 60 * 60
+POLL_INTERVAL_SECONDS = 8 * 60 * 60
 RSS_ITEM_LIMIT = 10
-REPUBLISH_AFTER_DAYS = 3
+REPUBLISH_AFTER_DAYS = 3.0 / 24
 AUTHOR_COOLDOWN_SECONDS = 18 * 60 * 60
 ENABLED_SERVICES = %w[devto].freeze
 ```
 
-The worker checks immediately on startup, then polls every 12 hours. Posts are only eligible for republishing after they are at least 3 days old. In each loop, posts are processed oldest-to-newest, only one successful republish per author is performed, and an author is skipped if DEV.to reports any article/draft from the last 18 hours.
+The worker checks immediately on startup, then polls every 8 hours. Posts are temporarily eligible for republishing after they are at least 3 hours old. In each loop, posts are processed oldest-to-newest, only one successful republish per author is performed, and an author is skipped if DEV.to reports any article/draft from the last 18 hours.
 
 ## DEV.to behavior
 

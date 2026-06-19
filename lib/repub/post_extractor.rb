@@ -83,6 +83,13 @@ module Repub
               wrapper.add_child(img)
             end
           end
+          if figcaption && !figcaption.empty?
+            caption_p = doc.create_element("p")
+            caption_em = doc.create_element("em")
+            caption_em.content = figcaption
+            caption_p.add_child(caption_em)
+            wrapper.add_child(caption_p)
+          end
           card.replace(wrapper)
         elsif (emoji = card.at_css(".kg-callout-emoji")) && (text = card.at_css(".kg-callout-text"))
           blockquote = doc.create_element("blockquote")

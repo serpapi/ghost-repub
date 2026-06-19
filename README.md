@@ -100,7 +100,7 @@ JOSEF_DEVTO_TOKEN=josef_devto_token
 JORDANNE_DEVTO_TOKEN=jordanne_devto_token
 
 REPUB_DEVTO_ORGANIZATION_ID=2993
-REPUB_DEVTO_PUBLISHED=false
+REPUB_DEVTO_PUBLISHED=true
 ```
 
 Author token names use the SerpApi blog author username from the URL:
@@ -128,11 +128,11 @@ Repub server starting
 Mode: rack background worker
 RSS feed: https://serpapi.com/blog/rss/
 Services: devto
-Polling every 120 seconds
+Polling every 43200 seconds
 Checking latest 10 RSS item(s)
 Republishing posts at least 3 days old
 DEV.to organization ID: 2993
-DEV.to mode: draft
+DEV.to mode: publish
 ```
 
 Server logs use service-oriented messages such as:
@@ -168,16 +168,16 @@ The DEV.to publisher sends:
 ```json
 {
   "article": {
-    "published": false,
+    "published": true,
     "organization_id": 2993
   }
 }
 ```
 
-Set this to publish immediately:
+Direct publishing is the default. Set this to create drafts instead:
 
 ```env
-REPUB_DEVTO_PUBLISHED=true
+REPUB_DEVTO_PUBLISHED=false
 ```
 
 The API key must be a DEV.to user API key for the matching author. If `REPUB_DEVTO_ORGANIZATION_ID` is set, that user must belong to the organization. DEV.to does not provide organization-only posting tokens via the public API.
@@ -239,7 +239,7 @@ Make sure your CapRover app environment variables include the author tokens and 
 ```env
 HILMAN_DEVTO_TOKEN=...
 REPUB_DEVTO_ORGANIZATION_ID=2993
-REPUB_DEVTO_PUBLISHED=false
+REPUB_DEVTO_PUBLISHED=true
 ```
 
 The Rack process should show startup logs like:

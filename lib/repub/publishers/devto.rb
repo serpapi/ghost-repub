@@ -8,6 +8,7 @@ module Repub
   module Publishers
     class Devto
       API_BASE_URL = "https://dev.to/api"
+      REQUEST_INTERVAL_SECONDS = 5
 
       def initialize(api_key:, organization_id:, published: false, author_cooldown_seconds: 18 * 60 * 60)
         @api_key = api_key
@@ -115,6 +116,7 @@ module Repub
         response = Net::HTTP.start(uri.hostname, uri.port, use_ssl: true) do |http|
           http.request(request)
         end
+        sleep REQUEST_INTERVAL_SECONDS
 
         return response if response.is_a?(Net::HTTPSuccess)
 

@@ -66,7 +66,7 @@ module Repub
     end
 
     def self.devto_published?
-      truthy?(ENV.fetch("REPUB_DEVTO_PUBLISHED", "false"))
+      truthy?(ENV.fetch("REPUB_DEVTO_PUBLISHED", "true"))
     end
 
     def self.devto_organization_id

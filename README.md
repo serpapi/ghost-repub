@@ -196,7 +196,7 @@ This means:
 
 - Restarts should still avoid duplicates already present on DEV.to.
 - If a destination service does not support listing/checking existing posts, a future publisher will need its own remote duplicate strategy.
-- In-memory `seen` state also prevents reposting the same RSS item repeatedly during a single process run.
+- The worker does not keep long-lived local seen-state; it relies on destination APIs for duplicate detection.
 
 ## Adding another publishing service
 

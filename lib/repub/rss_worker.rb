@@ -20,7 +20,6 @@ module Repub
       @medium_limit = medium_limit
       @logger = logger
       @trap_signals = trap_signals
-      @seen = Hash.new { |hash, key| hash[key] = Set.new }
       @publishers_by_author_key = {}
       @author_keys_by_url = {}
       @stop = false
@@ -106,11 +105,6 @@ module Repub
         return { author_key: author_key, published: false }
       end
 
-      if @seen[author_key].include?(item.url)
-        @logger.info("Already saw #{item.url} during this run; skipping")
-        return { author_key: author_key, published: false }
-      end
-
       already_published_publishers = configured_publishers.select { |publisher| already_published_url?(publisher, item.url) }
       already_published_publishers.each do |publisher|
         log_skip(item, publisher, "already published")
@@ -125,21 +119,16 @@ module Repub
 
       pending_publishers = publishers_without_existing_post - recent_article_publishers
       if pending_publishers.empty?
-        @seen[author_key].add(item.url)
         return { author_key: author_key, published: false }
       end
 
       @logger.info("Extracting #{item.url} for #{author_name}")
       post = PostExtractor.call(item.url)
-      @seen[author_key].add(item.url)
-      @seen[author_key].add(post.canonical_url)
 
       published = false
 
       pending_publishers.each do |publisher|
-        publisher_key = "#{author_key}:#{publisher.name}"
-
-        if @seen[publisher_key].include?(post.canonical_url) || publisher.already_published?(post)
+        if publisher.already_published?(post)
           log_skip(post, publisher, "already published")
           next
         end
@@ -147,7 +136,6 @@ module Repub
         @logger.info("Republishing #{article_label(post)} to #{publisher.name}")
         result = publisher.publish(post)
         published = true
-        @seen[publisher_key].add(post.canonical_url)
         @logger.info("#{publisher.name}: created #{result["url"] || result["id"]}")
       rescue StandardError => e
         @logger.error("#{publisher.name}: failed for #{post.canonical_url}: #{e.class}: #{e.message}")

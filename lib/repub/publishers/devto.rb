@@ -15,6 +15,7 @@ module Repub
         @organization_id = organization_id
         @published = published
         @author_cooldown_seconds = author_cooldown_seconds
+        @published_source_urls = nil
       end
 
       def name
@@ -26,11 +27,11 @@ module Repub
       end
 
       def already_published?(post)
-        known_source_urls.include?(post.canonical_url) || known_source_urls.include?(post.url)
+        published_source_urls.include?(post.canonical_url) || published_source_urls.include?(post.url)
       end
 
       def already_published_url?(url)
-        known_source_urls.include?(url)
+        published_source_urls.include?(url)
       end
 
       def recent_article?
@@ -50,20 +51,27 @@ module Repub
         article[:organization_id] = @organization_id if @organization_id
 
         response = request(:post, "/articles", body: { article: article })
-        JSON.parse(response.body)
+        payload = JSON.parse(response.body)
+
+        @published_source_urls&.add(post.canonical_url)
+        @published_source_urls&.add(post.url)
+
+        payload
       end
 
       private
 
-      def known_source_urls
-        urls = Set.new
+      def published_source_urls
+        @published_source_urls ||= begin
+          urls = Set.new
 
-        articles.each do |article|
-          urls.add(article["canonical_url"]) if article["canonical_url"] && !article["canonical_url"].empty?
-          urls.add(article["url"]) if article["url"] && !article["url"].empty?
+          articles.each do |article|
+            urls.add(article["canonical_url"]) if article["canonical_url"] && !article["canonical_url"].empty?
+            urls.add(article["url"]) if article["url"] && !article["url"].empty?
+          end
+
+          urls
         end
-
-        urls
       end
 
       def latest_article_at

@@ -190,13 +190,13 @@ The worker does not save local state. To avoid duplicate DEV.to posts, it querie
 GET https://dev.to/api/articles/me/all
 ```
 
-using each author's token and compares existing article `canonical_url` values with the source post URL/canonical URL. This endpoint includes both published articles and drafts, so draft-mode republishing also skips posts that already have DEV.to drafts. The same endpoint is checked fresh when enforcing the 18-hour author cooldown.
+using each author's token and compares existing article `canonical_url` values with the source post URL/canonical URL. This endpoint includes both published articles and drafts, so draft-mode republishing also skips posts that already have DEV.to drafts. Already-published source URLs are cached in memory per author/service to avoid repeatedly querying DEV.to for the same duplicate checks. The 18-hour author cooldown still checks DEV.to fresh.
 
 This means:
 
 - Restarts should still avoid duplicates already present on DEV.to.
 - If a destination service does not support listing/checking existing posts, a future publisher will need its own remote duplicate strategy.
-- The worker does not keep long-lived local seen-state; it relies on destination APIs for duplicate detection.
+- The only long-lived local memory is the per-author/service cache of already-published source URLs used to reduce DEV.to duplicate-check requests.
 
 ## Adding another publishing service
 

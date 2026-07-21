@@ -31,6 +31,7 @@ module Repub
       raw_time = doc.at_css("time[datetime]")&.[]("datetime")
       published_at = raw_time ? Time.parse(raw_time).utc.strftime("%Y-%m-%d %H:%M %z") : ""
       canonical_url = doc.at_css("link[rel='canonical']")&.[]("href") || url
+      author_key = extract_author_key(doc)
 
       section = doc.at_css("section.post-full-content")
       raise "No section.post-full-content found on page: #{url}" unless section
@@ -46,11 +47,18 @@ module Repub
         cover_image: cover_image,
         published_at: published_at,
         canonical_url: canonical_url,
+        author_key: author_key,
         markdown: markdown
       )
     end
 
     private
+
+    def extract_author_key(doc)
+      href = doc.css("a[href*='/blog/author/']").map { |link| link["href"] }.compact.first
+      match = href&.match(%r{/blog/author/([^/?#]+)/?})
+      match && match[1].to_s.strip.downcase.gsub(/[^a-z0-9]+/, "_").gsub(/\A_+|_+\z/, "")
+    end
 
     def extract_markdown(doc, section)
       bookmarks = []

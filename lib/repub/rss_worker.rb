@@ -10,6 +10,7 @@ require_relative "post_extractor"
 module Repub
   class RssWorker
     FeedItem = Struct.new(:url, :title, :author_name, :published_at, :author_key, keyword_init: true)
+    UNCERTAIN_PUBLISH_TTL_SECONDS = 60
 
     def initialize(feed_sources:, publishers_for_author_key:, poll_interval:, rss_item_limit:, republish_after_days:, medium_limit:, logger: Logger.new($stdout), trap_signals: true)
       @feed_sources = feed_sources
@@ -22,6 +23,8 @@ module Repub
       @trap_signals = trap_signals
       @publishers_by_author_key = {}
       @author_keys_by_url = {}
+      @published_urls_by_destination = Hash.new { |hash, key| hash[key] = Set.new }
+      @uncertain_urls_by_destination = Hash.new { |hash, key| hash[key] = {} }
       @stop = false
     end
 
@@ -105,7 +108,9 @@ module Repub
         return { author_key: author_key, published: false }
       end
 
-      already_published_publishers = configured_publishers.select { |publisher| already_published_url?(publisher, item.url) }
+      already_published_publishers = configured_publishers.select do |publisher|
+        locally_published_url?(publisher, item.url) || already_published_url?(publisher, item.url)
+      end
       already_published_publishers.each do |publisher|
         log_skip(item, publisher, "already published")
       end
@@ -128,16 +133,18 @@ module Repub
       published = false
 
       pending_publishers.each do |publisher|
-        if publisher.already_published?(post)
+        if locally_published?(publisher, post) || publisher.already_published?(post)
           log_skip(post, publisher, "already published")
           next
         end
 
         @logger.info("Republishing #{article_label(post)} to #{publisher.name}")
         result = publisher.publish(post)
+        remember_published(publisher, post)
         published = true
         @logger.info("#{publisher.name}: created #{result["url"] || result["id"]}")
       rescue StandardError => e
+        remember_uncertain(publisher, post) if e.respond_to?(:publish_outcome_unknown?) && e.publish_outcome_unknown?
         @logger.error("#{publisher.name}: failed for #{post.canonical_url}: #{e.class}: #{e.message}")
       end
 
@@ -171,6 +178,48 @@ module Repub
       return publisher.already_published_url?(url) if publisher.respond_to?(:already_published_url?)
 
       false
+    end
+
+    def locally_published?(publisher, post)
+      locally_published_url?(publisher, post.canonical_url) || locally_published_url?(publisher, post.url)
+    end
+
+    def locally_published_url?(publisher, url)
+      key = destination_key(publisher)
+      return false unless key && url
+      return true if @published_urls_by_destination[key].include?(url)
+
+      uncertain_at = @uncertain_urls_by_destination[key][url]
+      return false unless uncertain_at
+      return true if uncertain_at > Time.now - UNCERTAIN_PUBLISH_TTL_SECONDS
+
+      @uncertain_urls_by_destination[key].delete(url)
+      false
+    end
+
+    def remember_published(publisher, post)
+      key = destination_key(publisher)
+      return unless key
+
+      post_urls(post).each do |url|
+        @published_urls_by_destination[key].add(url)
+        @uncertain_urls_by_destination[key].delete(url)
+      end
+    end
+
+    def remember_uncertain(publisher, post)
+      key = destination_key(publisher)
+      return unless key
+
+      post_urls(post).each { |url| @uncertain_urls_by_destination[key][url] = Time.now }
+    end
+
+    def post_urls(post)
+      [post.canonical_url, post.url].compact.uniq
+    end
+
+    def destination_key(publisher)
+      publisher.destination_key if publisher.respond_to?(:destination_key)
     end
 
     def rss_items(rss_url, configured_author_key: nil)

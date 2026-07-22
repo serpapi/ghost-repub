@@ -50,6 +50,10 @@ if post_to_hashnode
     publication_id: publication_id
   )
 
-  hashnode_post = publisher.publish(post)
-  puts "Created Hashnode post: #{hashnode_post["url"]}"
+  if publisher.already_published?(post)
+    puts "Hashnode post already exists for #{post.canonical_url}; skipping"
+  else
+    hashnode_post = publisher.publish(post)
+    puts "Created Hashnode post: #{hashnode_post["url"]}"
+  end
 end

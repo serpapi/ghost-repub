@@ -7,7 +7,15 @@ require "uri"
 module Repub
   module Publishers
     class Hashnode
+      class PublishOutcomeUnknown < RuntimeError
+        def publish_outcome_unknown?
+          true
+        end
+      end
+
       API_URL = "https://gql-beta.hashnode.com/"
+      PUBLISH_RECONCILIATION_ATTEMPTS = 7
+      PUBLISH_RECONCILIATION_INTERVAL_SECONDS = 5
 
       PUBLISH_POST_MUTATION = <<~GRAPHQL
         mutation PublishPost($input: PublishPostInput!) {
@@ -26,6 +34,30 @@ module Repub
         query CurrentUser {
           me {
             id
+            username
+          }
+        }
+      GRAPHQL
+
+      PUBLICATION_MEMBERS_QUERY = <<~GRAPHQL
+        query PublicationMembers($publicationId: ObjectId!, $after: String) {
+          publication(id: $publicationId) {
+            title
+            members(first: 100, after: $after) {
+              edges {
+                node {
+                  role
+                  user {
+                    id
+                    username
+                  }
+                }
+              }
+              pageInfo {
+                hasNextPage
+                endCursor
+              }
+            }
           }
         }
       GRAPHQL
@@ -37,6 +69,7 @@ module Repub
               edges {
                 node {
                   id
+                  slug
                   url
                   canonicalUrl
                   publishedAt
@@ -69,6 +102,10 @@ module Repub
         present?(@api_key) && present?(@publication_id)
       end
 
+      def destination_key
+        "hashnode:#{@publication_id}"
+      end
+
       def already_published?(post)
         published_source_urls.include?(post.canonical_url) || published_source_urls.include?(post.url)
       end
@@ -82,15 +119,20 @@ module Repub
       end
 
       def publish(post)
+        validate_publish_access!
+
         payload = graphql(
           query: PUBLISH_POST_MUTATION,
           variables: { input: publish_input(post) }
         )
         hashnode_post = payload.fetch("data").fetch("publishPost").fetch("post")
+        remember_published_source_urls(post)
+        hashnode_post
+      rescue PublishOutcomeUnknown
+        hashnode_post = reconcile_published_post(post)
+        raise unless hashnode_post
 
-        @published_source_urls&.add(post.canonical_url)
-        @published_source_urls&.add(post.url)
-
+        remember_published_source_urls(post)
         hashnode_post
       end
 
@@ -135,6 +177,25 @@ module Repub
         end
       end
 
+      def remember_published_source_urls(post)
+        @published_source_urls&.add(post.canonical_url)
+        @published_source_urls&.add(post.url)
+      end
+
+      def reconcile_published_post(post)
+        PUBLISH_RECONCILIATION_ATTEMPTS.times do |attempt|
+          hashnode_post = posts.find do |candidate|
+            [post.canonical_url, post.url].include?(candidate["canonicalUrl"]) || candidate["slug"] == post.slug
+          end
+          return hashnode_post if hashnode_post
+          break if attempt == PUBLISH_RECONCILIATION_ATTEMPTS - 1
+
+          sleep PUBLISH_RECONCILIATION_INTERVAL_SECONDS
+        end
+
+        nil
+      end
+
       def latest_article_at
         posts.select { |post| post.dig("author", "id") == current_author_id }
              .filter_map { |post| parse_time(post["publishedAt"]) }
@@ -142,7 +203,48 @@ module Repub
       end
 
       def current_author_id
-        @current_author_id ||= graphql(query: CURRENT_USER_QUERY, variables: {}).fetch("data").fetch("me").fetch("id")
+        current_user.fetch("id")
+      end
+
+      def current_user
+        @current_user ||= graphql(query: CURRENT_USER_QUERY, variables: {}).fetch("data").fetch("me")
+      end
+
+      def validate_publish_access!
+        publication, members = publication_and_members
+        member = members.find { |candidate| candidate.dig("user", "id") == current_author_id }
+        username = current_user.fetch("username")
+        publication_name = publication.fetch("title")
+
+        unless member
+          raise "Hashnode user @#{username} is not a member of #{publication_name}; use a token for an organization member"
+        end
+
+        return unless member.fetch("role").to_s.upcase == "CONTRIBUTOR"
+
+        raise "Hashnode user @#{username} is a CONTRIBUTOR in #{publication_name} and cannot publish directly; use an owner/editor token or change the member role"
+      end
+
+      def publication_and_members
+        all_members = []
+        publication = nil
+        after = nil
+
+        loop do
+          payload = graphql(
+            query: PUBLICATION_MEMBERS_QUERY,
+            variables: { publicationId: @publication_id, after: after }
+          )
+          publication = payload.fetch("data").fetch("publication")
+          connection = publication.fetch("members")
+          all_members.concat(connection.fetch("edges").map { |edge| edge.fetch("node") })
+          page_info = connection.fetch("pageInfo")
+          break unless page_info.fetch("hasNextPage")
+
+          after = page_info.fetch("endCursor")
+        end
+
+        [publication, all_members]
       end
 
       def parse_time(timestamp)
@@ -190,12 +292,23 @@ module Repub
         payload = JSON.parse(response.body)
         raise "Hashnode API error #{response.code}: #{response.body}" unless response.is_a?(Net::HTTPSuccess)
         if payload["errors"] && !payload["errors"].empty?
-          raise hashnode_error_message(response, payload["errors"], query, variables)
+          message = hashnode_error_message(response, payload["errors"], query, variables)
+          if publish_outcome_unknown?(query, payload["errors"])
+            raise PublishOutcomeUnknown, "#{message}; the post may have been created, so do not retry immediately"
+          end
+
+          raise message
         end
 
         payload
       rescue JSON::ParserError
         raise "Hashnode API error #{response&.code}: invalid JSON response: #{response&.body}"
+      end
+
+      def publish_outcome_unknown?(query, errors)
+        query.match?(/\bmutation\s+PublishPost\b/) && errors.any? do |error|
+          error["path"]&.first(2) == %w[publishPost post]
+        end
       end
 
       def hashnode_error_message(response, errors, query, variables)

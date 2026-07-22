@@ -55,7 +55,7 @@ Publish directly to Hashnode:
 ruby cli.rb --hashnode <post-url>
 ```
 
-The CLI uses `HASHNODE_API_KEY`, matching the generic `DEVTO_API_KEY` used by the DEV.to CLI path. It always creates a new Hashnode post and does not apply the server worker's age, duplicate, or cooldown checks.
+The CLI uses `HASHNODE_API_KEY`, matching the generic `DEVTO_API_KEY` used by the DEV.to CLI path. It skips a Hashnode post when the publication already contains the same canonical source URL; otherwise it publishes immediately without applying the server worker's age or cooldown checks.
 
 For one-off posting, set the relevant credentials in `.env`:
 
@@ -236,7 +236,7 @@ Then register it in `Repub::Config.publishers_for_author_key` and add the servic
 
 The Hashnode publisher sends `publishPost` to `https://gql-beta.hashnode.com/` with the source post's Markdown, slug, tags, cover image, description, and canonical URL. The endpoint is intentionally fixed to Hashnode's documented production GraphQL host, and redirects are rejected so credentials are never forwarded to a redirect target. Hashnode API writes and publication-scoped reads require a Hashnode Pro publication.
 
-The server queries the publication's posts and compares their `canonicalUrl` values with the source URL before publishing. It also applies the same author cooldown used for DEV.to. The manual `--hashnode` CLI path intentionally skips those checks and always attempts to create a new post.
+The server queries the publication's posts and compares their `canonicalUrl` values with the source URL before publishing. It also keeps an in-process publication-level URL set so two author feeds cannot republish the same multi-author post while Hashnode's query cache is stale. If Hashnode reports an error while resolving the newly created post, the publisher polls the publication for up to 30 seconds and treats a matching canonical URL or slug as success. If the outcome is still unknown, the URL is guarded for another 60 seconds because the mutation may still have succeeded; after that, the remote canonical check becomes authoritative again. The same author cooldown used for DEV.to still applies. The manual `--hashnode` CLI path checks remote canonical URLs but intentionally skips age and cooldown checks.
 
 ## CapRover deployment
 

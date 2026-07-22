@@ -30,9 +30,13 @@ if post_to_devto
     published: publish_to_devto
   )
 
-  devto_article = publisher.publish(post)
-  status = publish_to_devto ? "published article" : "draft"
-  puts "Created DEV.to #{status}: #{devto_article["url"]}"
+  if publisher.already_published?(post)
+    puts "DEV.to article already exists for #{post.canonical_url}; skipping"
+  else
+    devto_article = publisher.publish(post)
+    status = publish_to_devto ? "published article" : "draft"
+    puts "Created DEV.to #{status}: #{devto_article["url"]}"
+  end
 end
 
 if post_to_hashnode

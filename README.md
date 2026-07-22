@@ -55,7 +55,7 @@ Publish directly to Hashnode:
 ruby cli.rb --hashnode <post-url>
 ```
 
-The CLI uses `HASHNODE_API_KEY`, matching the generic `DEVTO_API_KEY` used by the DEV.to CLI path. It skips a Hashnode post when the publication already contains the same canonical source URL; otherwise it publishes immediately without applying the server worker's age or cooldown checks.
+The CLI uses generic `DEVTO_API_KEY` and `HASHNODE_API_KEY` credentials. Before publishing, DEV.to checks the configured organization's published articles (or the authenticated author's articles when no organization is configured), while Hashnode checks the publication's posts. A matching canonical source URL is skipped; otherwise the selected service publishes immediately without applying the server worker's age or cooldown checks.
 
 For one-off posting, set the relevant credentials in `.env`:
 
@@ -65,8 +65,6 @@ DEVTO_API_KEY=your_dev_api_key
 HASHNODE_API_KEY=your_hashnode_personal_access_token
 HASHNODE_PUBLICATION_ID=your_hashnode_publication_id
 ```
-
-
 
 ## Long-running server
 
@@ -206,17 +204,20 @@ REPUB_DEVTO_PUBLISHED=false
 
 The API key must be a DEV.to user API key for the matching author. If `REPUB_DEVTO_ORGANIZATION_ID` is set, that user must belong to the organization. DEV.to does not provide organization-only posting tokens via the public API.
 
+For duplicate detection, DEV.to uses published articles from `GET /api/organizations/:organization_id/articles` when an organization is configured. This makes the canonical URL check organization-wide, so a co-authored source post already published by one organization author is not published again with another author's token. Without an organization, it falls back to the authenticated author's articles. The author cooldown continues to use the authenticated author's articles and drafts from `GET /api/articles/me/all`.
+
 ## Duplicate handling without local storage
 
-The worker does not save local state. It queries DEV.to's `GET /api/articles/me/all` endpoint and Hashnode's paginated publication posts GraphQL connection, then compares each destination article's canonical URL with the source post URL/canonical URL. DEV.to's endpoint includes both published articles and drafts; Hashnode's query covers published posts.
+The worker does not save local state. For DEV.to, it checks the configured organization's published articles by canonical URL, falling back to the authenticated author's articles only when no organization is configured. For Hashnode, it queries the publication's paginated posts GraphQL connection. It then compares each destination article's canonical URL with the source post URL/canonical URL.
 
-Already-published source URLs are cached in memory per author/service to avoid repeating remote duplicate checks. The 18-hour cooldown checks each destination fresh.
+The worker also keeps a destination-wide in-process set of successful publishes. All author tokens targeting the same configured DEV.to organization share one key, and all author tokens targeting the same Hashnode publication share one key. This closes the race where the same co-authored source post appears in multiple author feeds before the destination API reflects the first publish.
 
 This means:
 
-- Restarts should still avoid duplicates already present on DEV.to or Hashnode.
+- Restarts still avoid duplicates for DEV.to organization posts and Hashnode publication posts that are already published remotely.
+- DEV.to organization-wide duplicate detection intentionally considers published articles only; drafts are not part of this cross-author corner-case check.
+- The 18-hour cooldown remains author-specific even though duplicate detection is organization/publication-wide.
 - If another destination service does not support listing/checking existing posts, it will need its own remote duplicate strategy.
-- The only long-lived local memory is the per-author/service cache of already-published source URLs.
 
 ## Adding another publishing service
 
@@ -298,7 +299,7 @@ Supported for one-off posting and the long-running server.
 
 ### Hashnode
 
-Supported for one-off force-create posting and automatic long-running server republishing. Hashnode API access requires the destination publication to have an active Pro plan.
+Supported for duplicate-safe one-off posting and automatic long-running server republishing. Hashnode API access requires the destination publication to have an active Pro plan.
 
 ## Contributing
 

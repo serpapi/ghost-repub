@@ -1,4 +1,5 @@
 require_relative "publishers/devto"
+require_relative "publishers/hashnode"
 
 module Repub
   class Config
@@ -10,7 +11,7 @@ module Repub
     AUTHOR_COOLDOWN_SECONDS = 18 * 60 * 60
     MEDIUM_LIMIT = 2
 
-    ENABLED_SERVICES = %w[devto].freeze
+    ENABLED_SERVICES = %w[devto hashnode].freeze
 
     def self.rss_url
       RSS_URL
@@ -84,6 +85,12 @@ module Repub
             published: devto_published?,
             author_cooldown_seconds: author_cooldown_seconds
           )
+        when "hashnode"
+          Publishers::Hashnode.new(
+            api_key: author_hashnode_token(author_key),
+            publication_id: hashnode_publication_id(author_key),
+            author_cooldown_seconds: author_cooldown_seconds
+          )
         else
           raise "Unknown service: #{service}"
         end
@@ -94,9 +101,32 @@ module Repub
       "#{env_author_key(author_key)}_DEVTO_TOKEN"
     end
 
+    def self.hashnode_token_env_name_for_author_key(author_key)
+      "HASHNODE_#{env_author_key(author_key)}_TOKEN"
+    end
+
+    def self.hashnode_publication_id_env_name_for_author_key(author_key)
+      "HASHNODE_#{env_author_key(author_key)}_PUBLICATION_ID"
+    end
+
+
+
+    def self.hashnode_publication_id(author_key = nil)
+      author_value = ENV[hashnode_publication_id_env_name_for_author_key(author_key)] if author_key
+      return author_value if present?(author_value)
+
+      ENV["REPUB_HASHNODE_PUBLICATION_ID"]
+    end
+
     def self.author_devto_token(author_key)
       ENV[token_env_name_for_author_key(author_key)]
     end
+
+    def self.author_hashnode_token(author_key)
+      ENV[hashnode_token_env_name_for_author_key(author_key)]
+    end
+
+
 
     def self.normalize_author_key(key)
       key.to_s.strip.downcase.gsub(/[^a-z0-9]+/, "_").gsub(/\A_+|_+\z/, "")
@@ -110,6 +140,11 @@ module Repub
       %w[1 true yes y on].include?(value.to_s.strip.downcase)
     end
 
-    private_class_method :author_devto_token, :normalize_author_key, :env_author_key, :truthy?
+    def self.present?(value)
+      !value.nil? && !value.to_s.strip.empty?
+    end
+
+    private_class_method :author_devto_token, :author_hashnode_token, :normalize_author_key,
+                         :env_author_key, :truthy?, :present?
   end
 end

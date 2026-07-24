@@ -15,7 +15,8 @@ RUN bundle exec ruby -c config.ru && \
     bundle exec ruby -c lib/repub/config.rb && \
     bundle exec ruby -c lib/repub/rss_worker.rb && \
     bundle exec ruby -c lib/repub/server_boot.rb && \
-    bundle exec ruby -c lib/repub/publishers/devto.rb
+    bundle exec ruby -c lib/repub/publishers/devto.rb && \
+    bundle exec ruby -c lib/repub/publishers/hashnode.rb
 
 EXPOSE 80
 

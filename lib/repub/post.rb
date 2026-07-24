@@ -8,6 +8,7 @@ module Repub
     :cover_image,
     :published_at,
     :canonical_url,
+    :author_key,
     :markdown,
     keyword_init: true
   ) do

@@ -26,6 +26,10 @@ module Repub
         !@api_key.nil? && !@api_key.empty?
       end
 
+      def destination_key
+        "devto:organization:#{@organization_id}" if @organization_id
+      end
+
       def already_published?(post)
         published_source_urls.include?(post.canonical_url) || published_source_urls.include?(post.url)
       end
@@ -65,13 +69,17 @@ module Repub
         @published_source_urls ||= begin
           urls = Set.new
 
-          articles.each do |article|
+          destination_articles.each do |article|
             urls.add(article["canonical_url"]) if article["canonical_url"] && !article["canonical_url"].empty?
             urls.add(article["url"]) if article["url"] && !article["url"].empty?
           end
 
           urls
         end
+      end
+
+      def destination_articles
+        @organization_id ? organization_articles : articles
       end
 
       def latest_article_at
@@ -83,6 +91,26 @@ module Repub
         Time.parse(raw_timestamp.to_s)
       rescue ArgumentError, TypeError
         nil
+      end
+
+      def organization_articles
+        return [] unless @organization_id
+
+        all_articles = []
+        page = 1
+
+        loop do
+          response = request(:get, "/organizations/#{@organization_id}/articles?page=#{page}&per_page=1000")
+          page_articles = JSON.parse(response.body)
+          break if page_articles.empty?
+
+          all_articles.concat(page_articles)
+          break if page_articles.length < 1000
+
+          page += 1
+        end
+
+        all_articles
       end
 
       def articles

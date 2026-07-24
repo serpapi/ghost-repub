@@ -19,6 +19,12 @@ module Repub
         end
       end
 
+      class AlreadyPublished < RuntimeError
+        def already_published?
+          true
+        end
+      end
+
       API_URL = "https://gql-beta.hashnode.com/"
       PUBLISH_RECONCILIATION_ATTEMPTS = 7
       PUBLISH_RECONCILIATION_INTERVAL_SECONDS = 5
@@ -48,6 +54,7 @@ module Repub
       PUBLICATION_MEMBERS_QUERY = <<~GRAPHQL
         query PublicationMembers($publicationId: ObjectId!, $after: String) {
           publication(id: $publicationId) {
+            id
             title
             members(first: 100, after: $after) {
               edges {
@@ -71,6 +78,7 @@ module Repub
       PUBLICATION_POSTS_QUERY = <<~GRAPHQL
         query PublicationPosts($publicationId: ObjectId!, $after: String) {
           publication(id: $publicationId) {
+            id
             posts(first: 100, after: $after) {
               edges {
                 node {
@@ -88,6 +96,22 @@ module Repub
                 hasNextPage
                 endCursor
               }
+            }
+          }
+        }
+      GRAPHQL
+
+      POST_BY_SLUG_QUERY = <<~GRAPHQL
+        query PublicationPostBySlug($publicationId: ObjectId!, $slug: String!) {
+          publication(id: $publicationId) {
+            id
+            %<cache_alias>s: id
+            post(slug: $slug) {
+              id
+              slug
+              url
+              canonicalUrl
+              title
             }
           }
         }
@@ -113,6 +137,8 @@ module Repub
       end
 
       def already_published?(post)
+        return true if post_by_slug(post.slug)
+
         published_source_urls.include?(post.canonical_url) || published_source_urls.include?(post.url)
       end
 
@@ -126,6 +152,7 @@ module Repub
 
       def publish(post)
         validate_publish_access!
+        ensure_slug_available!(post)
 
         payload = graphql(
           query: PUBLISH_POST_MUTATION,
@@ -190,8 +217,9 @@ module Repub
 
       def reconcile_published_post(post)
         PUBLISH_RECONCILIATION_ATTEMPTS.times do |attempt|
-          hashnode_post = posts.find do |candidate|
-            [post.canonical_url, post.url].include?(candidate["canonicalUrl"]) || candidate["slug"] == post.slug
+          hashnode_post = post_by_slug(post.slug)
+          hashnode_post ||= posts.find do |candidate|
+            [post.canonical_url, post.url].include?(candidate["canonicalUrl"])
           end
           return hashnode_post if hashnode_post
           break if attempt == PUBLISH_RECONCILIATION_ATTEMPTS - 1
@@ -200,6 +228,28 @@ module Repub
         end
 
         nil
+      end
+
+      def post_by_slug(slug)
+        return nil unless present?(slug)
+
+        # Hashnode caches GraphQL reads at the edge and publication post lists can
+        # remain stale after publishing. A unique harmless field alias gives this
+        # exact-slug lookup a fresh cache key instead of reusing a cached nil.
+        cache_alias = "fresh#{Time.now.to_i}#{Process.pid}#{rand(1_000_000_000)}"
+        query = format(POST_BY_SLUG_QUERY, cache_alias: cache_alias)
+        payload = graphql(
+          query: query,
+          variables: { publicationId: @publication_id, slug: slug }
+        )
+        payload.dig("data", "publication", "post")
+      end
+
+      def ensure_slug_available!(post)
+        existing_post = post_by_slug(post.slug)
+        return unless existing_post
+
+        raise AlreadyPublished, "Hashnode post already exists at #{existing_post["url"]}; refusing to create a suffixed duplicate"
       end
 
       def latest_article_at

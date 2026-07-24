@@ -61,7 +61,11 @@ if post_to_hashnode
   if publisher.already_published?(post)
     puts "Hashnode post already exists for #{post.canonical_url}; skipping"
   else
-    hashnode_post = publisher.publish(post)
-    puts "Created Hashnode post: #{hashnode_post["url"]}"
+    begin
+      hashnode_post = publisher.publish(post)
+      puts "Created Hashnode post: #{hashnode_post["url"]}"
+    rescue Repub::Publishers::Hashnode::AlreadyPublished => e
+      puts "Skipping Hashnode: #{e.message}"
+    end
   end
 end

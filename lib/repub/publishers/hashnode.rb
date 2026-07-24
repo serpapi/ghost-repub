@@ -13,6 +13,12 @@ module Repub
         end
       end
 
+      class PublishAccessDenied < RuntimeError
+        def publish_skipped?
+          true
+        end
+      end
+
       API_URL = "https://gql-beta.hashnode.com/"
       PUBLISH_RECONCILIATION_ATTEMPTS = 7
       PUBLISH_RECONCILIATION_INTERVAL_SECONDS = 5
@@ -217,12 +223,12 @@ module Repub
         publication_name = publication.fetch("title")
 
         unless member
-          raise "Hashnode user @#{username} is not a member of #{publication_name}; use a token for an organization member"
+          raise PublishAccessDenied, "Hashnode user @#{username} is not a member of #{publication_name}; use a token for an organization member"
         end
 
         return unless member.fetch("role").to_s.upcase == "CONTRIBUTOR"
 
-        raise "Hashnode user @#{username} is a CONTRIBUTOR in #{publication_name} and cannot publish directly; use an owner/editor token or change the member role"
+        raise PublishAccessDenied, "Hashnode user @#{username} is a CONTRIBUTOR in #{publication_name} and cannot publish directly; use an owner/editor token or change the member role"
       end
 
       def publication_and_members

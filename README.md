@@ -237,6 +237,8 @@ Then register it in `Repub::Config.publishers_for_author_key` and add the servic
 
 The Hashnode publisher sends `publishPost` to `https://gql-beta.hashnode.com/` with the source post's Markdown, slug, tags, cover image, description, and canonical URL. The endpoint is intentionally fixed to Hashnode's documented production GraphQL host, and redirects are rejected so credentials are never forwarded to a redirect target. Hashnode API writes and publication-scoped reads require a Hashnode Pro publication.
 
+If the token owner is not a publication member or only has the `CONTRIBUTOR` role, the worker logs the access error, skips that Hashnode publish, and continues running.
+
 The server queries the publication's posts and compares their `canonicalUrl` values with the source URL before publishing. It also keeps an in-process publication-level URL set so two author feeds cannot republish the same multi-author post while Hashnode's query cache is stale. If Hashnode reports an error while resolving the newly created post, the publisher polls the publication for up to 30 seconds and treats a matching canonical URL or slug as success. If the outcome is still unknown, the URL is guarded for another 60 seconds because the mutation may still have succeeded; after that, the remote canonical check becomes authoritative again. The same author cooldown used for DEV.to still applies. The manual `--hashnode` CLI path checks remote canonical URLs but intentionally skips age and cooldown checks.
 
 ## CapRover deployment

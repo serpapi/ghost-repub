@@ -204,7 +204,7 @@ REPUB_DEVTO_PUBLISHED=false
 
 The API key must be a DEV.to user API key for the matching author. If `REPUB_DEVTO_ORGANIZATION_ID` is set, that user must belong to the organization. DEV.to does not provide organization-only posting tokens via the public API.
 
-For duplicate detection, DEV.to uses published articles from `GET /api/organizations/:organization_id/articles` when an organization is configured. This makes the canonical URL check organization-wide, so a co-authored source post already published by one organization author is not published again with another author's token. Without an organization, it falls back to the authenticated author's articles. The author cooldown continues to use the authenticated author's articles and drafts from `GET /api/articles/me/all`.
+For duplicate detection, DEV.to uses published articles from `GET /api/organizations/:organization_id/articles` when an organization is configured. This makes the canonical URL check organization-wide, so a co-authored source post already published by one organization author is not published again with another author's token. Without an organization, it falls back to the authenticated author's articles. If DEV.to still rejects publishing because the canonical URL is globally taken, the worker logs an informational skip noting that the post is likely published outside the configured organization. The author cooldown continues to use the authenticated author's articles and drafts from `GET /api/articles/me/all`.
 
 ## Duplicate handling without local storage
 

@@ -144,6 +144,11 @@ module Repub
         published = true
         @logger.info("#{publisher.name}: created #{result["url"] || result["id"]}")
       rescue StandardError => e
+        if e.respond_to?(:canonical_url_already_taken?) && e.canonical_url_already_taken?
+          @logger.info("Skipping republishing #{article_label(post)} to #{publisher.name} [#{e.message}]")
+          next
+        end
+
         if e.respond_to?(:publish_skipped?) && e.publish_skipped?
           @logger.error("Skipping republishing #{article_label(post)} to #{publisher.name} [#{e.message}]")
           next

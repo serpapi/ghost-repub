@@ -7,6 +7,12 @@ require "uri"
 module Repub
   module Publishers
     class Devto
+      class CanonicalUrlAlreadyTaken < RuntimeError
+        def canonical_url_already_taken?
+          true
+        end
+      end
+
       API_BASE_URL = "https://dev.to/api"
       REQUEST_INTERVAL_SECONDS = 5
 
@@ -156,7 +162,20 @@ module Repub
 
         return response if response.is_a?(Net::HTTPSuccess)
 
+        if canonical_url_already_taken_response?(response)
+          raise CanonicalUrlAlreadyTaken, "canonical URL is already taken on DEV.to; the post is likely published outside the configured organization"
+        end
+
         raise "DEV.to API error #{response.code}: #{response.body}"
+      end
+
+      def canonical_url_already_taken_response?(response)
+        return false unless response.code.to_i == 422
+
+        payload = JSON.parse(response.body)
+        payload["error"].to_s.match?(/canonical url has already been taken/i)
+      rescue JSON::ParserError
+        false
       end
     end
   end

@@ -33,9 +33,13 @@ if post_to_devto
   if publisher.already_published?(post)
     puts "DEV.to article already exists for #{post.canonical_url}; skipping"
   else
-    devto_article = publisher.publish(post)
-    status = publish_to_devto ? "published article" : "draft"
-    puts "Created DEV.to #{status}: #{devto_article["url"]}"
+    begin
+      devto_article = publisher.publish(post)
+      status = publish_to_devto ? "published article" : "draft"
+      puts "Created DEV.to #{status}: #{devto_article["url"]}"
+    rescue Repub::Publishers::Devto::CanonicalUrlAlreadyTaken => e
+      puts "Skipping DEV.to: #{e.message}"
+    end
   end
 end
 

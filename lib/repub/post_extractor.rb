@@ -110,28 +110,48 @@ module Repub
         end
       end
 
-      section.css("pre code").each do |code|
-        lang = code["class"]&.scan(/language-(\S+)/)&.flatten&.first
-        code.prepend_child(doc.create_text_node("LANG:#{lang}\n")) if lang
+      code_blocks = []
+      section.css("pre").each_with_index do |pre, i|
+        code = pre.at_css("code") || pre
+        language = code["class"]&.scan(/(?:^|\s)language-([^\s]+)/)&.flatten&.first
+        code_blocks << { code: code.text, language: language }
+
+        placeholder = doc.create_element("p")
+        placeholder.add_child(doc.create_text_node("REPUBCODEBLOCK#{i}"))
+        pre.replace(placeholder)
       end
 
       markdown = ReverseMarkdown.convert(section.inner_html, unknown_tags: :bypass)
 
-      bookmarks.each_with_index do |bm, i|
-        next unless bm[:href]
+      markdown.gsub!(/REPUBBOOKMARK(\d+)/) do
+        bookmark = bookmarks.fetch(Regexp.last_match(1).to_i)
+        next "" unless bookmark[:href]
 
-        display = (bm[:title] && !bm[:title].empty?) ? bm[:title] : bm[:href]
-        markdown.gsub!("REPUBBOOKMARK#{i}", "- [#{display}](#{bm[:href]})")
+        display = present?(bookmark[:title]) ? bookmark[:title] : bookmark[:href]
+        "- [#{display}](#{bookmark[:href]})"
+      end
+
+      markdown.gsub!(/REPUBCODEBLOCK(\d+)/) do
+        code_block = code_blocks.fetch(Regexp.last_match(1).to_i)
+        fenced_code_block(code_block[:code], code_block[:language])
       end
 
       markdown.gsub!(/^ +(!?\[)/, '\\1')
-      markdown.gsub!(/^    LANG:(\S+)\n((?:^    .*\n)*)/) do
-        lang = Regexp.last_match(1).downcase
-        code = Regexp.last_match(2).gsub(/^    /, "")
-        "```#{lang}\n#{code}```\n"
-      end
-
       markdown
+    end
+
+    def fenced_code_block(code, language)
+      normalized_code = code.to_s.gsub("\r\n", "\n").gsub("\r", "\n")
+      longest_backtick_run = normalized_code.scan(/`+/).map(&:length).max.to_i
+      fence = "`" * [3, longest_backtick_run + 1].max
+      info = language.to_s.downcase.gsub(/[^a-z0-9_+.-]/, "")
+      normalized_code = "#{normalized_code}\n" unless normalized_code.end_with?("\n")
+
+      "#{fence}#{info}\n#{normalized_code}#{fence}"
+    end
+
+    def present?(value)
+      !value.nil? && !value.to_s.strip.empty?
     end
   end
 end

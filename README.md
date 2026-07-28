@@ -90,7 +90,7 @@ The worker:
 2. If `AUTHORS` is set, uses individual author feeds like `https://serpapi.com/blog/author/josef/rss/`.
 3. If `AUTHORS` is not set, falls back to the main feed at `https://serpapi.com/blog/rss/`.
 4. Resolves or uses the blog author username, e.g. `hilman`.
-5. Looks for matching author service tokens in ENV, e.g. `HILMAN_DEVTO_TOKEN` and `HASHNODE_HILMAN_TOKEN`.
+5. Looks for matching author service tokens in ENV, e.g. `HILMAN_DEVTO_TOKEN` and `HILMAN_HASHNODE_TOKEN`.
 6. Skips a service if its required token or publication ID is not configured for that author.
 7. Processes feed items from oldest to newest.
 8. Skips the item if it is newer than `REPUBLISH_AFTER_DAYS`.
@@ -111,10 +111,7 @@ HILMAN_DEVTO_TOKEN=hilman_devto_token
 JOSEF_DEVTO_TOKEN=josef_devto_token
 JORDANNE_DEVTO_TOKEN=jordanne_devto_token
 
-HASHNODE_HILMAN_TOKEN=hilman_hashnode_personal_access_token
-HASHNODE_HILMAN_PUBLICATION_ID=hilman_hashnode_publication_id
-
-# Used when an author-specific Hashnode publication ID is not set:
+HILMAN_HASHNODE_TOKEN=hilman_hashnode_personal_access_token
 REPUB_HASHNODE_PUBLICATION_ID=shared_hashnode_publication_id
 
 REPUB_DEVTO_ORGANIZATION_ID=2993
@@ -124,20 +121,19 @@ REPUB_DEVTO_PUBLISHED=true
 Author token names use the SerpApi blog author username from the URL:
 
 ```text
-https://serpapi.com/blog/author/hilman/   -> HILMAN_DEVTO_TOKEN
-https://serpapi.com/blog/author/josef/    -> JOSEF_DEVTO_TOKEN
-https://serpapi.com/blog/author/jordanne/ -> JORDANNE_DEVTO_TOKEN
+https://serpapi.com/blog/author/hilman/   -> HILMAN_DEVTO_TOKEN / HILMAN_HASHNODE_TOKEN
+https://serpapi.com/blog/author/josef/    -> JOSEF_DEVTO_TOKEN / JOSEF_HASHNODE_TOKEN
+https://serpapi.com/blog/author/jordanne/ -> JORDANNE_DEVTO_TOKEN / JORDANNE_HASHNODE_TOKEN
 ```
 
 Author-specific service configuration uses these naming conventions:
 
 ```text
 <BLOG_AUTHOR_USERNAME>_DEVTO_TOKEN
-HASHNODE_<BLOG_AUTHOR_USERNAME>_TOKEN
-HASHNODE_<BLOG_AUTHOR_USERNAME>_PUBLICATION_ID
+<BLOG_AUTHOR_USERNAME>_HASHNODE_TOKEN
 ```
 
-`REPUB_HASHNODE_PUBLICATION_ID` provides a shared fallback when an author-specific Hashnode publication ID is not set.
+`REPUB_HASHNODE_PUBLICATION_ID` is the single Hashnode publication targeted by every configured author token.
 
 If `AUTHORS` is set, only those individual author feeds are scanned. If it is unset or empty, the main RSS feed is scanned instead. If the matching token is not set, the RSS item is skipped before conversion/publishing.
 
@@ -270,8 +266,8 @@ HILMAN_DEVTO_TOKEN=...
 REPUB_DEVTO_ORGANIZATION_ID=2993
 REPUB_DEVTO_PUBLISHED=true
 
-HASHNODE_HILMAN_TOKEN=...
-HASHNODE_HILMAN_PUBLICATION_ID=...
+HILMAN_HASHNODE_TOKEN=...
+REPUB_HASHNODE_PUBLICATION_ID=...
 ```
 
 The Rack process should show startup logs like:

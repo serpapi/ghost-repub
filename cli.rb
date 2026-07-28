@@ -47,11 +47,8 @@ if post_to_hashnode
   api_key = ENV["HASHNODE_API_KEY"]
   abort "Set HASHNODE_API_KEY to post to Hashnode" if api_key.nil? || api_key.empty?
 
-  author_key = post.author_key
-  publication_id = ENV["HASHNODE_PUBLICATION_ID"]
-  publication_id ||= Repub::Config.hashnode_publication_id(author_key) if author_key
-  publication_hint = author_key ? " (or #{Repub::Config.hashnode_publication_id_env_name_for_author_key(author_key)})" : ""
-  abort "Set HASHNODE_PUBLICATION_ID#{publication_hint} to post to Hashnode" if publication_id.nil? || publication_id.empty?
+  publication_id = ENV["HASHNODE_PUBLICATION_ID"] || Repub::Config.hashnode_publication_id
+  abort "Set HASHNODE_PUBLICATION_ID (or REPUB_HASHNODE_PUBLICATION_ID) to post to Hashnode" if publication_id.nil? || publication_id.empty?
 
   publisher = Repub::Publishers::Hashnode.new(
     api_key: api_key,

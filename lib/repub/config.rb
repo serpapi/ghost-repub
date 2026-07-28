@@ -88,7 +88,7 @@ module Repub
         when "hashnode"
           Publishers::Hashnode.new(
             api_key: author_hashnode_token(author_key),
-            publication_id: hashnode_publication_id(author_key),
+            publication_id: hashnode_publication_id,
             author_cooldown_seconds: author_cooldown_seconds
           )
         else
@@ -102,19 +102,10 @@ module Repub
     end
 
     def self.hashnode_token_env_name_for_author_key(author_key)
-      "HASHNODE_#{env_author_key(author_key)}_TOKEN"
+      "#{env_author_key(author_key)}_HASHNODE_TOKEN"
     end
 
-    def self.hashnode_publication_id_env_name_for_author_key(author_key)
-      "HASHNODE_#{env_author_key(author_key)}_PUBLICATION_ID"
-    end
-
-
-
-    def self.hashnode_publication_id(author_key = nil)
-      author_value = ENV[hashnode_publication_id_env_name_for_author_key(author_key)] if author_key
-      return author_value if present?(author_value)
-
+    def self.hashnode_publication_id
       ENV["REPUB_HASHNODE_PUBLICATION_ID"]
     end
 
@@ -125,8 +116,6 @@ module Repub
     def self.author_hashnode_token(author_key)
       ENV[hashnode_token_env_name_for_author_key(author_key)]
     end
-
-
 
     def self.normalize_author_key(key)
       key.to_s.strip.downcase.gsub(/[^a-z0-9]+/, "_").gsub(/\A_+|_+\z/, "")

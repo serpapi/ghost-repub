@@ -48,6 +48,23 @@ module Repub
       logger.info("Medium limit: #{Config.medium_limit} post(s) per cycle")
       logger.info("DEV.to organization ID: #{Config.devto_organization_id || "none"}")
       logger.info("DEV.to mode: #{Config.devto_published? ? "publish" : "draft"}")
+
+      hashnode_publication_status = Config.hashnode_publication_id.to_s.strip.empty? ? "missing HASHNODE_PUBLICATION_ID" : "configured"
+      logger.info("Hashnode publication ID: #{hashnode_publication_status}")
+
+      Config.author_keys.each do |author_key|
+        services = Config.publishers_for_author_key(author_key).map do |publisher|
+          status = if publisher.configured?
+                     "configured"
+                   elsif publisher.respond_to?(:configuration_error)
+                     publisher.configuration_error
+                   else
+                     "missing token"
+                   end
+          "#{publisher.name}=#{status}"
+        end
+        logger.info("Author #{author_key}: #{services.join(", ")}")
+      end
     end
 
     def start_background_worker(logger:)

@@ -112,7 +112,7 @@ JOSEF_DEVTO_TOKEN=josef_devto_token
 JORDANNE_DEVTO_TOKEN=jordanne_devto_token
 
 HILMAN_HASHNODE_TOKEN=hilman_hashnode_personal_access_token
-REPUB_HASHNODE_PUBLICATION_ID=shared_hashnode_publication_id
+HASHNODE_PUBLICATION_ID=shared_hashnode_publication_id
 
 REPUB_DEVTO_ORGANIZATION_ID=2993
 REPUB_DEVTO_PUBLISHED=true
@@ -133,7 +133,7 @@ Author-specific service configuration uses these naming conventions:
 <BLOG_AUTHOR_USERNAME>_HASHNODE_TOKEN
 ```
 
-`REPUB_HASHNODE_PUBLICATION_ID` is the single Hashnode publication targeted by every configured author token.
+`HASHNODE_PUBLICATION_ID` is the single Hashnode publication targeted by every configured author token.
 
 If `AUTHORS` is set, only those individual author feeds are scanned. If it is unset or empty, the main RSS feed is scanned instead. If the matching token is not set, the RSS item is skipped before conversion/publishing.
 
@@ -144,13 +144,16 @@ On startup, both `server.rb` and `config.ru` log the current configuration witho
 ```text
 Repub server starting
 Mode: rack background worker
-RSS feed: https://serpapi.com/blog/rss/
+Author feeds: josef, adarsh
 Services: devto, hashnode
 Polling every 28800 seconds
 Checking latest 10 RSS item(s)
 Republishing posts at least 3 days old
 DEV.to organization ID: 2993
 DEV.to mode: publish
+Hashnode publication ID: configured
+Author josef: devto=configured, hashnode=configured
+Author adarsh: devto=configured, hashnode=missing ADARSH_HASHNODE_TOKEN
 ```
 
 Server logs use service-oriented messages such as:
@@ -158,7 +161,7 @@ Server logs use service-oriented messages such as:
 ```text
 Republishing Amazon ASIN Lookup API: Find and Fetch Product Details to devto
 Skipping republishing Amazon ASIN Lookup API: Find and Fetch Product Details to devto [already published]
-Skipping republishing Amazon ASIN Lookup API: Find and Fetch Product Details to devto [missing token]
+Skipping republishing Amazon ASIN Lookup API: Find and Fetch Product Details to hashnode [missing JOSEF_HASHNODE_TOKEN]
 Skipping republishing Amazon ASIN Lookup API: Find and Fetch Product Details to devto [too new]
 Skipping republishing Amazon ASIN Lookup API: Find and Fetch Product Details to devto [recent article]
 ```
@@ -267,7 +270,7 @@ REPUB_DEVTO_ORGANIZATION_ID=2993
 REPUB_DEVTO_PUBLISHED=true
 
 HILMAN_HASHNODE_TOKEN=...
-REPUB_HASHNODE_PUBLICATION_ID=...
+HASHNODE_PUBLICATION_ID=...
 ```
 
 The Rack process should show startup logs like:

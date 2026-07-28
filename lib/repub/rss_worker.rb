@@ -98,7 +98,12 @@ module Repub
       configured_publishers = publishers.select(&:configured?)
 
       (publishers - configured_publishers).each do |publisher|
-        log_skip(item, publisher, "missing token")
+        reason = if publisher.respond_to?(:configuration_error)
+                   publisher.configuration_error
+                 else
+                   "missing token"
+                 end
+        log_skip(item, publisher, reason || "missing configuration")
       end
 
       return { author_key: author_key, published: false } if configured_publishers.empty?

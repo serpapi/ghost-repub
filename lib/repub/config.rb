@@ -89,7 +89,9 @@ module Repub
           Publishers::Hashnode.new(
             api_key: author_hashnode_token(author_key),
             publication_id: hashnode_publication_id,
-            author_cooldown_seconds: author_cooldown_seconds
+            author_cooldown_seconds: author_cooldown_seconds,
+            api_key_env_name: hashnode_token_env_name_for_author_key(author_key),
+            publication_id_env_name: "HASHNODE_PUBLICATION_ID"
           )
         else
           raise "Unknown service: #{service}"
@@ -106,7 +108,7 @@ module Repub
     end
 
     def self.hashnode_publication_id
-      ENV["REPUB_HASHNODE_PUBLICATION_ID"]
+      ENV["HASHNODE_PUBLICATION_ID"]
     end
 
     def self.author_devto_token(author_key)

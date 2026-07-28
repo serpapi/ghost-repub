@@ -117,10 +117,12 @@ module Repub
         }
       GRAPHQL
 
-      def initialize(api_key:, publication_id:, author_cooldown_seconds: 18 * 60 * 60)
+      def initialize(api_key:, publication_id:, author_cooldown_seconds: 18 * 60 * 60, api_key_env_name: nil, publication_id_env_name: nil)
         @api_key = api_key
         @publication_id = publication_id
         @author_cooldown_seconds = author_cooldown_seconds
+        @api_key_env_name = api_key_env_name
+        @publication_id_env_name = publication_id_env_name
         @published_source_urls = nil
       end
 
@@ -129,7 +131,16 @@ module Repub
       end
 
       def configured?
-        present?(@api_key) && present?(@publication_id)
+        configuration_error.nil?
+      end
+
+      def configuration_error
+        missing = []
+        missing << (@api_key_env_name || "Hashnode API key") unless present?(@api_key)
+        missing << (@publication_id_env_name || "Hashnode publication ID") unless present?(@publication_id)
+        return if missing.empty?
+
+        "missing #{missing.join(" and ")}"
       end
 
       def destination_key
